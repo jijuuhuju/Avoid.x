@@ -13,11 +13,8 @@
     .face { width:100px; height:100px; background:#FFDE00; border-radius:50%; position:relative; transition:.3s; }
     .eye-socket { width:16px; height:16px; border:4px solid #000; border-radius:50%; position:absolute; top:30px; background:#fff; box-sizing:border-box; }
     .left-socket { left:22px; } .right-socket { right:22px; }
-    /* 【初期】初めてのときは大きくて可愛い黒目 (10px) */
-    .pupil { width:10px; height:10px; background:#000; border-radius:50%; position:absolute; top:-1px; left:-1px; transition:transform 0.1s, width 0.3s, height 0.3s, top 0.3s, left 0.3s; }
-    /* 【ループ後】襲われて上に戻ると、黒目が極小 (3px) になりバキバキになる */
-    body[data-eye="bakibaki"] .pupil { width:3px; height:3px; top:2px; left:2px; }
-    .mouth { width:50px; height:25px; border-bottom:5px solid #000; border-radius:0 0 25px 25px; position:absolute; bottom:18px; left:50%; transform:translateX(-50%); }
+    .pupil { width:10px; height:10px; background:#000; border-radius:50%; position:absolute; top:-1px; left:-1px; transition:transform 0.1s; }
+    .mouth { width:50px; height:25px; border-bottom:5px solid #000; border-radius:0 0 25px 25px; position:absolute; bottom:18px; left:50%; transform:translateX(-50%); box-sizing:border-box; }
     .caption-box { padding:12px; font-size:0.9rem; min-height:70px; word-break:break-all; }
     body[data-ph="2"] { background:#e0e0e0; }
     body[data-ph="3"] { background:#111; color:#fff; }
@@ -44,7 +41,7 @@
   <div class="scroll-container" id="cnt">
     <div class="vlog-card" id="chr">
       <div class="video-screen">
-        <div class="face">
+        <div class="face" id="fce">
           <div class="eye-socket left-socket"><div class="pupil" id="p1"></div></div>
           <div class="eye-socket right-socket"><div class="pupil" id="p2"></div></div>
           <div class="mouth"></div>
@@ -55,23 +52,24 @@
   </div>
   <script>
     const msg = document.getElementById('msg'), char = document.getElementById('chr'), cont = document.getElementById('cnt'), body = document.body;
-    const p1 = document.getElementById('p1'), p2 = document.getElementById('p2');
+    const p1 = document.getElementById('p1'), p2 = document.getElementById('p2'), face = document.getElementById('fce');
     const hasP = localStorage.getItem('avoid_met_before');
-    // ループ判定：過去に訪れていたら目をバキバキ属性（bakibaki）にする
-    if (hasP) { body.setAttribute('data-eye', 'bakibaki'); }
     let m1 = hasP ? "「……過去に、話した？きがする」" : "「やあ、こんにちは、僕アボイド、初めてだけど…」";
     localStorage.setItem('avoid_met_before', 'true');
-    let act = false, trap = false, go = false;
+    let act = false, trap = false, go = false, lastY = 0, idleTimer;
     window.addEventListener('mousemove', (e) => {
       if (go) return; const r = char.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       const a = Math.atan2(e.clientY - cy, e.clientX - cx);
-      const dist = hasP ? 1 : 3; // バキバキ時は目の可動域を狭めて睨みを強くする
-      p1.style.transform = p2.style.transform = `translate(${Math.cos(a)*dist}px, ${Math.sin(a)*dist}px)`;
+      p1.style.transform = p2.style.transform = `translate(${Math.cos(a)*3}px, ${Math.sin(a)*3}px)`;
       if (act && !trap && e.clientY < 50) msg.innerHTML = "<span style='color:#f33;'>「ねえ、閉じるの？逃げるの？」</span>";
+      clearTimeout(idleTimer); if (!act) { idleTimer = setTimeout(() => { msg.innerText = "「……固まっちゃった？」"; }, 3000); }
     });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && !act) msg.innerText = "「……どこ見てるの？」"; });
     window.addEventListener('scroll', () => {
       if (act) { if (trap) triggerLoop(); return; }
-      const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+      const currY = window.scrollY, pct = (currY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+      if (currY < lastY && pct > 15 && pct < 70) { msg.innerText = "「……戻るの？」"; lastY = currY; return; }
+      lastY = currY;
       if (pct < 10) { body.setAttribute('data-ph', '1'); msg.innerText = m1; char.style.top = "45%"; }
       else if (pct < 70) { body.setAttribute('data-ph', '2'); msg.innerText = "「またあったね、秘密基地を教えてあげるよ、もっとスクロールしてね」"; char.style.top = `${45 + (pct * 0.4)}%`; }
       else { body.setAttribute('data-ph', '3'); char.style.top = "45%"; act = true; startEvent(); }
@@ -95,8 +93,17 @@
       setTimeout(() => { body.setAttribute('data-ph', 'go'); char.classList.add('rise'); char.style.opacity = "1"; msg.innerText = "いや、何かがきてる気がするって言ったよね。";
         setTimeout(() => { body.style.transform = "scale(3)";
           setTimeout(() => { window.scrollTo(0,0); cont.style.height = "100vh";
-            let bugs = ["エラーが発生しました。", "みつかっちゃったね。", "リロードして。はやく。", "うしろにいるよ。"], i = 0;
-            setInterval(() => { msg.innerHTML = `<span style='color:#f00;font-size:1rem;'>${bugs[i++ % 4]}</span>`; }, 800);
+            let steps = ["エラーが発生しました。", "……あ、みつかっちゃった。", "いま、そっちにむかってるよ。", "ドアのまえにいるよ。", "うしろにいるよ。"], stepIdx = 0;
+            let timer = setInterval(() => {
+              msg.innerHTML = `<span style='color:#f00;font-size:1.05rem;'>${steps[stepIdx]}</span>`;
+              if (stepIdx < steps.length - 1) { stepIdx++; } 
+              // 💀 最期：点滅のあとにアボイドが画面から消滅（逃走）する
+              else { clearInterval(timer); let blinkCount = 0;
+                     let blink = setInterval(() => { msg.style.visibility = (msg.style.visibility === 'hidden') ? 'visible' : 'hidden'; blinkCount++;
+                       if (blinkCount > 8) { clearInterval(blink); msg.style.visibility = 'visible'; body.style.animation = 'none'; face.style.opacity = '0'; // 画面のガタガタとアボイドの顔を完全に消す
+                                             msg.innerHTML = `<span style='color:#f00;font-size:1.1rem;'>……逃げちゃった。</span>`; }
+                     }, 300); }
+            }, 1600);
           }, 500);
         }, 1500);
       }, 100);
