@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>avoid</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: monospace;
+            transition: background-color 1s, color 1s, transform 0.5s ease;
+            overflow-x: hidden;
+            background-color: #fff;
+            transform-origin: center top;
+        }
+
+        .scroll-container {
+            height: 500vh; 
+            position: relative;
+        }
+
+        .character-container {
+            position: fixed;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+            transition: top 0.3s, opacity 0.5s;
+        }
+
+        /* 初期アボイド */
+        .face {
+            width: 150px;
+            height: 150px;
+            background-color: #FFDE00;
+            border-radius: 50%;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .eye {
+            width: 24px;
+            height: 24px;
+            border: 6px solid #000;
+            border-radius: 50%;
+            position: absolute;
+            top: 45px;
+            box-sizing: border-box;
+        }
+        .left { left: 35px; }
+        .right { right: 35px; }
+
+        .mouth {
+            width: 80px;
+            height: 40px;
+            border-bottom: 7px solid #000;
+            border-radius: 0 0 40px 40px;
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            box-sizing: border-box;
+        }
+
+        /* セリフ（はみ出し防止を追加） */
+        .message-box {
+            margin-top: 25px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 0 10px;
+            max-width: 280px;
+            word-break: break-all; /* 枠内での自動折り返し */
+        }
+
+        /* 各段階の背景色 */
+        body[data-phase="1"] { background-color: #fff; color: #000; }
+        body[data-phase="2"] { background-color: #eee; color: #333; }
+        body[data-phase="3"] { background-color: #111; color: #fff; }
+        body[data-phase="4"] { background-color: #050000; color: #f33; }
+
+        /* ゲームオーバー（本当の姿） */
+        body[data-phase="gameover"] { 
+            background-color: #000; color: #f00; animation: shake 0.05s infinite; 
+        }
+        body[data-phase="gameover"] .face { 
+            background-color: #FF9300; transform: scale(2); border-radius: 50%;
+        }
+        body[data-phase="gameover"] .eye.left {
+            width: 35px; height: 60px; background: #000; border: none; top: 15px; left: 30px;
+        }
+        body[data-phase="gameover"] .eye.left::after {
+            content: ''; position: absolute; width: 12px; height: 16px; background: #F00; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        body[data-phase="gameover"] .eye.right {
+            width: 25px; height: 50px; background: #000; border: none; top: 20px; right: 35px;
+        }
+        body[data-phase="gameover"] .eye.right::after {
+            content: ''; position: absolute; width: 4px; height: 8px; background: #FDE00; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        body[data-phase="gameover"] .mouth { 
+            background: #000; width: 90px; height: 100px; border: none;
+            border-radius: 40% 40% 50% 50% / 20% 20% 80% 80%; bottom: -15px;
+        }
+
+        .fall { animation: fallD 0.4s ease forwards; }
+        .rise { animation: riseU 0.5s ease forwards; }
+
+        @keyframes fallD { 0% { top: -20%; opacity: 0; } 100% { top: 45%; opacity: 1; } }
+        @keyframes riseU { 0% { top: 120%; opacity: 0; } 100% { top: 45%; opacity: 1; } }
+        @keyframes shake {
+            0% { transform: translate(2px, 2px); }
+            50% { transform: translate(-2px, -2px); }
+            100% { transform: translate(2px, -2px); }
+        }
+    </style>
+</head>
+<body data-phase="1">
+
+    <div class="scroll-container" id="container">
+        <div class="character-container" id="character">
+            <div class="face">
+                <div class="eye left"></div>
+                <div class="eye right"></div>
+                <div class="mouth"></div>
+            </div>
+            <div class="message-box" id="msg">...</div>
+        </div>
+    </div>
+
+    <script>
+        const msg = document.getElementById('msg');
+        const char = document.getElementById('character');
+        const cont = document.getElementById('container');
+        const body = document.body;
+
+        const hasPlayed = localStorage.getItem('avoid_met_before');
+        let msg1 = hasPlayed ? "「過去に話した気がする」" : "「僕はアボイド。初めてだね」";
+        localStorage.setItem('avoid_met_before', 'true');
+
+        let active = false; 
+        let trap = false; 
+
+        window.addEventListener('scroll', () => {
+            if (active) {
+                if (trap) triggerLoop();
+                return;
+            }
+
+            const h = document.documentElement.scrollHeight - window.innerHeight;
+            const pct = (window.scrollY / h) * 100;
+
+            if (pct < 10) {
+                body.setAttribute('data-phase', '1');
+                msg.innerText = msg1;
+                char.style.top = "45%";
+            } else if (pct < 70) {
+                body.setAttribute('data-phase', '2');
+                msg.innerText = "「またね。基地を教えるよ。もっとスクロールして」";
+                char.style.top = `${45 + (pct * 0.4)}%`;
+            } else {
+                body.setAttribute('data-phase', '3');
+                char.style.top = "45%"; 
+                startEvent();
+            }
+        });
+
+        function startEvent() {
+            active = true; 
+            window.scrollTo(0, document.documentElement.scrollHeight);
+            cont.style.height = "100vh"; 
+
+            msg.innerText = "「基地へようこそ。無視していいけど何故ここをみつけたの？」";
+
+            setTimeout(() => {
+                msg.innerText = "「何か来る。ちょっと待って、準備するね」";
+                
+                setTimeout(() => {
+                    char.style.opacity = "0";
+
+                    setTimeout(() => {
+                        body.setAttribute('data-phase', '4'); 
+                        char.classList.add('fall');
+                        char.style.opacity = "1";
+                        msg.innerText = "「こんにちは僕avoid。まさか会うなんて。ここ基地だよ」";
+
+                        setTimeout(() => {
+                            msg.innerText = "「あ、スクロールは禁句だあ」";
+                            
+                            setTimeout(() => {
+                                cont.style.height = "150vh"; 
+                                msg.innerHTML = "「あ、スクロールは禁句だあ」<br><br><span style='color:#fff; font-size:0.9rem;'>[ 下にスクロール ]</span>";
+                                trap = true; 
+                            }, 2000);
+                        }, 4000);
+                    }, 2000);
+                }, 2500);
+            }, 3500);
+        }
+
+        function triggerLoop() {
+            trap = false;
+            char.classList.remove('fall');
+            char.style.opacity = "0"; 
+            
+            setTimeout(() => {
+                body.setAttribute('data-phase', 'gameover'); 
+                char.classList.add('rise'); 
+                char.style.opacity = "1";
+                msg.innerText = "avoidしてって言ったのに。";
+
+                setTimeout(() => {
+                    body.style.transform = "scale(3)";
+                    setTimeout(() => {
+                        window.scrollTo(0, 0);
+                        cont.style.height = "100vh";
+                        msg.innerHTML = "<span style='color:#fff; font-size:1rem;'>エラー。再読み込みして。</span>";
+                    }, 500);
+                }, 1500);
+            }, 100);
+        }
+
+        msg.innerText = msg1;
+    </script>
+</body>
+</html>
