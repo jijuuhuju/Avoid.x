@@ -8,12 +8,15 @@
     body { margin:0; font-family:sans-serif; background:#fafafa; transition:1s; transform-origin:center top; }
     header { background:#fff; padding:10px; text-align:center; font-weight:bold; border-bottom:1px solid #dbdbdb; position:fixed; width:100%; top:0; z-index:20; }
     .scroll-container { height:500vh; padding-top:60px; }
-    .vlog-card { background:#fff; border:1px solid #dbdbdb; max-width:260px; margin:20px auto; border-radius:8px; overflow:hidden; position:fixed; left:50%; top:45%; transform:translate(-50%,-50%); transition:top .3s,opacity .5s; z-index:10; }
+    .vlog-card { background:#fff; border:1px solid #dbdbdb; max-width:260px; margin:20px auto; border-radius:8px; overflow:hidden; position:fixed; left:50%; top:45%; transform:translate(-50%,-50%); transition:top .3s,opacity .5s; z-index:10; animation: pulse 3s infinite alternate ease-in-out; }
     .video-screen { width:260px; height:150px; background:#000; position:relative; display:flex; justify-content:center; align-items:center; overflow:hidden; }
     .face { width:100px; height:100px; background:#FFDE00; border-radius:50%; position:relative; transition:.3s; }
     .eye-socket { width:16px; height:16px; border:4px solid #000; border-radius:50%; position:absolute; top:30px; background:#fff; box-sizing:border-box; }
     .left-socket { left:22px; } .right-socket { right:22px; }
-    .pupil { width:5px; height:5px; background:#000; border-radius:50%; position:absolute; top:1px; left:1px; }
+    /* 【初期】初めてのときは大きくて可愛い黒目 (10px) */
+    .pupil { width:10px; height:10px; background:#000; border-radius:50%; position:absolute; top:-1px; left:-1px; transition:transform 0.1s, width 0.3s, height 0.3s, top 0.3s, left 0.3s; }
+    /* 【ループ後】襲われて上に戻ると、黒目が極小 (3px) になりバキバキになる */
+    body[data-eye="bakibaki"] .pupil { width:3px; height:3px; top:2px; left:2px; }
     .mouth { width:50px; height:25px; border-bottom:5px solid #000; border-radius:0 0 25px 25px; position:absolute; bottom:18px; left:50%; transform:translateX(-50%); }
     .caption-box { padding:12px; font-size:0.9rem; min-height:70px; word-break:break-all; }
     body[data-ph="2"] { background:#e0e0e0; }
@@ -22,7 +25,7 @@
     body[data-ph="3"] .vlog-card { background:#222; border-color:#333; }
     body[data-ph="4"] { background:#050000; color:#f33; } body[data-ph="4"] .video-screen { background:#200; }
     body[data-ph="go"] { background:#000; color:#f00; animation:sk 0.05s infinite; }
-    body[data-ph="go"] header { display:none; } body[data-ph="go"] .vlog-card { border:none; background:transparent; transform:translate(-50%,-50%) scale(1.6); } body[data-ph="go"] .video-screen { background:transparent; }
+    body[data-ph="go"] header { display:none; } body[data-ph="go"] .vlog-card { border:none; background:transparent; transform:translate(-50%,-50%) scale(1.6); animation:none; } body[data-ph="go"] .video-screen { background:transparent; }
     body[data-ph="go"] .face { background:#FF9300; transform:scale(1.2); }
     body[data-ph="go"] .eye-socket.left-socket { width:26px; height:46px; background:#000; border:none; top:12px; left:20px; }
     body[data-ph="go"] .eye-socket.left-socket .pupil { width:8px; height:10px; background:#F00; top:50%; left:50%; transform:translate(-50%,-50%)!important; }
@@ -33,6 +36,7 @@
     @keyframes fallD { 0% { top:-20%; opacity:0; } 100% { top:45%; opacity:1; } }
     @keyframes riseU { 0% { top:120%; opacity:0; } 100% { top:45%; opacity:1; } }
     @keyframes sk { 0% { transform:translate(2px,2px); } 50% { transform:translate(-2px,-2px); } 100% { transform:translate(2px,-2px); } }
+    @keyframes pulse { 0% { transform:translate(-50%,-50%) scale(1); } 100% { transform:translate(-50%,-50%) scale(1.03); } }
   </style>
 </head>
 <body data-ph="1">
@@ -53,17 +57,18 @@
     const msg = document.getElementById('msg'), char = document.getElementById('chr'), cont = document.getElementById('cnt'), body = document.body;
     const p1 = document.getElementById('p1'), p2 = document.getElementById('p2');
     const hasP = localStorage.getItem('avoid_met_before');
+    // ループ判定：過去に訪れていたら目をバキバキ属性（bakibaki）にする
+    if (hasP) { body.setAttribute('data-eye', 'bakibaki'); }
     let m1 = hasP ? "「……過去に、話した？きがする」" : "「やあ、こんにちは、僕アボイド、初めてだけど…」";
     localStorage.setItem('avoid_met_before', 'true');
     let act = false, trap = false, go = false;
-    // 視線追尾＆上部逃亡警告
     window.addEventListener('mousemove', (e) => {
       if (go) return; const r = char.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       const a = Math.atan2(e.clientY - cy, e.clientX - cx);
-      p1.style.transform = p2.style.transform = `translate(${Math.cos(a)*3}px, ${Math.sin(a)*3}px)`;
+      const dist = hasP ? 1 : 3; // バキバキ時は目の可動域を狭めて睨みを強くする
+      p1.style.transform = p2.style.transform = `translate(${Math.cos(a)*dist}px, ${Math.sin(a)*dist}px)`;
       if (act && !trap && e.clientY < 50) msg.innerHTML = "<span style='color:#f33;'>「ねえ、閉じるの？逃げるの？」</span>";
     });
-    // スクロールイベント
     window.addEventListener('scroll', () => {
       if (act) { if (trap) triggerLoop(); return; }
       const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
@@ -71,7 +76,6 @@
       else if (pct < 70) { body.setAttribute('data-ph', '2'); msg.innerText = "「またあったね、秘密基地を教えてあげるよ、もっとスクロールしてね」"; char.style.top = `${45 + (pct * 0.4)}%`; }
       else { body.setAttribute('data-ph', '3'); char.style.top = "45%"; act = true; startEvent(); }
     });
-    // クライマックス
     function startEvent() {
       window.scrollTo(0, document.documentElement.scrollHeight); cont.style.height = "100vh";
       msg.innerText = "「秘密基地へようこそ、ところで、無視していいけど、何故ここを見つけたの？」";
@@ -86,10 +90,9 @@
         }, 2500);
       }, 3500);
     }
-    // ループ
     function triggerLoop() {
       trap = false; go = true; char.classList.remove('fall'); char.style.opacity = "0";
-      setTimeout(() => { body.setAttribute('data-ph', 'go'); char.classList.add('rise'); char.style.opacity = "1"; msg.innerText = "avoidしてって言ったのに。";
+      setTimeout(() => { body.setAttribute('data-ph', 'go'); char.classList.add('rise'); char.style.opacity = "1"; msg.innerText = "いや、何かがきてる気がするって言ったよね。";
         setTimeout(() => { body.style.transform = "scale(3)";
           setTimeout(() => { window.scrollTo(0,0); cont.style.height = "100vh";
             let bugs = ["エラーが発生しました。", "みつかっちゃったね。", "リロードして。はやく。", "うしろにいるよ。"], i = 0;
